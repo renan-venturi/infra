@@ -1,0 +1,83 @@
+version: '3.9'
+
+services:
+  postgres-clients:
+    image: postgres:15
+    container_name: postgres-clients
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: clients_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - clients_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  postgres-transactions:
+    image: postgres:15
+    container_name: postgres-transactions
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: transactions_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - transactions_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7.2
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - app-network
+
+  clients-service:
+    build: ../clients
+    container_name: clients-service
+    ports:
+      - "3001:3000"
+    env_file:
+      - ../clients/.env
+    depends_on:
+      - postgres-clients
+      - redis
+      - rabbitmq
+    networks:
+      - app-network
+
+  transactions-service:
+    build: ../transactions
+    container_name: transactions-service
+    ports:
+      - "3002:3000"
+    env_file:
+      - ../transactions/.env
+    depends_on:
+      - postgres-transactions
+      - rabbitmq
+      - clients-service
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  clients_data:
+  transactions_data:
