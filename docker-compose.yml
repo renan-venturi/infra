@@ -47,12 +47,19 @@ services:
       - app-network
 
   clients-service:
-    build: ../clients
+    build: ../client
     container_name: clients-service
     ports:
       - "3001:3000"
-    env_file:
-      - ../clients/.env
+    environment:
+      - DATABASE_URL=postgresql://admin:admin@postgres-clients:5432/clients_db?schema=public
+      - NODE_ENV=development
+      - PORT=3000
+      - CORS_ORIGIN=*
+      - JWT_SECRET=your-super-secret-jwt-key-here
+      - JWT_EXPIRES_IN=7d
+      - REDIS_URL=redis://redis:6379
+      - API_DOCS_PATH=/api/docs
     depends_on:
       - postgres-clients
       - redis
@@ -65,8 +72,13 @@ services:
     container_name: transactions-service
     ports:
       - "3002:3000"
-    env_file:
-      - ../transactions/.env
+    environment:
+      - DATABASE_URL=postgresql://admin:admin@postgres-transactions:5432/transactions_db?schema=public
+      - NODE_ENV=development
+      - PORT=3000
+      - CORS_ORIGIN=*
+      - CLIENTS_SERVICE_URL=http://clients-service:3000
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
     depends_on:
       - postgres-transactions
       - rabbitmq
