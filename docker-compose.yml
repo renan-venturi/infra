@@ -92,7 +92,7 @@ services:
       - PORT=3000
       - DATABASE_URL=postgresql://${POSTGRES_CLIENTS_USER:-admin}:${POSTGRES_CLIENTS_PASSWORD:-admin123}@postgres-clients:5432/${POSTGRES_CLIENTS_DB:-clients_db}?schema=public
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - JWT_SECRET=${JWT_SECRET:-1e29da3142a52df5fe017fcd3a69bc5cd231823d845bfbe0569ba4be0ef67b81}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
       - CORS_ORIGIN=${CORS_ORIGIN:-*}
     depends_on:
@@ -116,9 +116,9 @@ services:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=3000
       - DATABASE_URL=postgresql://${POSTGRES_TRANSACTIONS_USER:-admin}:${POSTGRES_TRANSACTIONS_PASSWORD:-admin123}@postgres-transactions:5432/${POSTGRES_TRANSACTIONS_DB:-transactions_db}?schema=public
-      - CLIENTS_SERVICE_URL=http://client-service:3000
+      - CLIENTS_SERVICE_URL=http://clients-service:3000
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASSWORD:-admin123}@rabbitmq:5672
-      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - JWT_SECRET=${JWT_SECRET:-1e29da3142a52df5fe017fcd3a69bc5cd231823d845bfbe0569ba4be0ef67b81}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
       - CORS_ORIGIN=${CORS_ORIGIN:-*}
     depends_on:
