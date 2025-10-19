@@ -1,90 +1,136 @@
 version: '3.9'
 
 services:
+  # Banco de dados para o serviço de clientes
   postgres-clients:
-    image: postgres:15
-    container_name: postgres-clients
+    image: postgres:15-alpine
+    container_name: postgres-client
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
-      POSTGRES_DB: clients_db
+      POSTGRES_USER: ${POSTGRES_CLIENTS_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_CLIENTS_PASSWORD:-admin123}
+      POSTGRES_DB: ${POSTGRES_CLIENTS_DB:-clients_db}
     ports:
-      - "5433:5432"
+      - "${POSTGRES_CLIENTS_PORT:-5433}:5432"
     volumes:
       - clients_data:/var/lib/postgresql/data
+      - ./init-scripts/clients:/docker-entrypoint-initdb.d
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_CLIENTS_USER:-admin} -d ${POSTGRES_CLIENTS_DB:-clients_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Banco de dados para o serviço de transações
   postgres-transactions:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: postgres-transactions
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
-      POSTGRES_DB: transactions_db
+      POSTGRES_USER: ${POSTGRES_TRANSACTIONS_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_TRANSACTIONS_PASSWORD:-admin123}
+      POSTGRES_DB: ${POSTGRES_TRANSACTIONS_DB:-transactions_db}
     ports:
-      - "5434:5432"
+      - "${POSTGRES_TRANSACTIONS_PORT:-5434}:5432"
     volumes:
       - transactions_data:/var/lib/postgresql/data
+      - ./init-scripts/transactions:/docker-entrypoint-initdb.d
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_TRANSACTIONS_USER:-admin} -d ${POSTGRES_TRANSACTIONS_DB:-transactions_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Redis para cache e sessões
   redis:
-    image: redis:7.2
+    image: redis:7.2-alpine
     container_name: redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
+  # RabbitMQ para mensageria
   rabbitmq:
-    image: rabbitmq:3.13-management
+    image: rabbitmq:3.13-management-alpine
     container_name: rabbitmq
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    networks:
-      - app-network
-
-  clients-service:
-    build: ../client
-    container_name: clients-service
-    ports:
-      - "3001:3000"
     environment:
-      - DATABASE_URL=postgresql://admin:admin@postgres-clients:5432/clients_db?schema=public
-      - NODE_ENV=development
-      - PORT=3000
-      - CORS_ORIGIN=*
-      - JWT_SECRET=your-super-secret-jwt-key-here
-      - JWT_EXPIRES_IN=7d
-      - REDIS_URL=redis://redis:6379
-      - API_DOCS_PATH=/api/docs
-    depends_on:
-      - postgres-clients
-      - redis
-      - rabbitmq
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin123}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
+  # Serviço de Clientes
+  clients-service:
+    build:
+      context: ../client
+      dockerfile: Dockerfile
+    container_name: client-service
+    ports:
+      - "${CLIENTS_PORT:-3001}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3000
+      - DATABASE_URL=postgresql://${POSTGRES_CLIENTS_USER:-admin}:${POSTGRES_CLIENTS_PASSWORD:-admin123}@postgres-clients:5432/${POSTGRES_CLIENTS_DB:-clients_db}?schema=public
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+    depends_on:
+      postgres-clients:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Serviço de Transações
   transactions-service:
-    build: ../transactions
+    build:
+      context: ../transactions
+      dockerfile: Dockerfile
     container_name: transactions-service
     ports:
-      - "3002:3000"
+      - "${TRANSACTIONS_PORT:-3002}:3000"
     environment:
-      - DATABASE_URL=postgresql://admin:admin@postgres-transactions:5432/transactions_db?schema=public
-      - NODE_ENV=development
+      - NODE_ENV=${NODE_ENV:-production}
       - PORT=3000
-      - CORS_ORIGIN=*
-      - CLIENTS_SERVICE_URL=http://clients-service:3000
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - DATABASE_URL=postgresql://${POSTGRES_TRANSACTIONS_USER:-admin}:${POSTGRES_TRANSACTIONS_PASSWORD:-admin123}@postgres-transactions:5432/${POSTGRES_TRANSACTIONS_DB:-transactions_db}?schema=public
+      - CLIENTS_SERVICE_URL=http://client-service:3000
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASSWORD:-admin123}@rabbitmq:5672
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
     depends_on:
-      - postgres-transactions
-      - rabbitmq
-      - clients-service
+      postgres-transactions:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      clients-service:
+        condition: service_started
     networks:
       - app-network
+    restart: unless-stopped
 
 networks:
   app-network:
@@ -92,4 +138,10 @@ networks:
 
 volumes:
   clients_data:
+    driver: local
   transactions_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
