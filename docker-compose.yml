@@ -92,6 +92,7 @@ services:
       - PORT=3000
       - DATABASE_URL=postgresql://${POSTGRES_CLIENTS_USER:-admin}:${POSTGRES_CLIENTS_PASSWORD:-admin123}@postgres-clients:5432/${POSTGRES_CLIENTS_DB:-clients_db}?schema=public
       - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASSWORD:-admin123}@rabbitmq:5672
       - JWT_SECRET=${JWT_SECRET:-1e29da3142a52df5fe017fcd3a69bc5cd231823d845bfbe0569ba4be0ef67b81}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
       - CORS_ORIGIN=${CORS_ORIGIN:-*}
